@@ -219,6 +219,138 @@ module.exports = (function() {
 		});
 	},
 
+	get_password: function(req, res){
+
+		var fabric_client = new Fabric_Client();
+		var key =req.body.prNumber;
+		// setup the fabric network
+		var channel = fabric_client.newChannel('mychannel');
+		var peer = fabric_client.newPeer('grpc://localhost:7051');
+		channel.addPeer(peer);
+
+		
+		var member_user = null;
+		var store_path = path.join(os.homedir(), '.hfc-key-store');
+		console.log('Store path:'+store_path);
+		var tx_id = null;
+
+
+		// create the key value store as defined in the fabric-client/config/default.json 'key-value-store' setting
+		Fabric_Client.newDefaultKeyValueStore({ path: store_path
+		}).then((state_store) => {
+		    // assign the store to the fabric client
+		    fabric_client.setStateStore(state_store);
+		    var crypto_suite = Fabric_Client.newCryptoSuite();
+		    // use the same location for the state store (where the users' certificate are kept)
+		    // and the crypto store (where the users' keys are kept)
+		    var crypto_store = Fabric_Client.newCryptoKeyStore({path: store_path});
+		    crypto_suite.setCryptoKeyStore(crypto_store);
+		    fabric_client.setCryptoSuite(crypto_suite);
+
+		    // get the enrolled user from persistence, this user will sign all requests
+		    return fabric_client.getUserContext('user1', true);
+		}).then((user_from_store) => {
+		    if (user_from_store && user_from_store.isEnrolled()) {
+		        console.log('Successfully loaded user1 from persistence');
+		        member_user = user_from_store;
+		    } else {
+				throw new Error('Failed to get user1.... run registerUser.js');
+		    }
+		    // getStudent - requires 1 argument, ex: args: ['4']
+		    const request = {
+		        chaincodeId: 'securecert-app',
+		        txId: tx_id,
+		        fcn: 'readStudent',
+		        args: [key]
+		    };
+		    // send the query proposal to the peer
+		    return channel.queryByChaincode(request);
+		}).then((query_responses) => {
+			let resultdata=JSON.parse(query_responses.toString('utf8'));
+			console.log("Query has completed, checking results");
+			console.log(resultdata);
+			console.log(resultdata.Email_Id);
+			console.log(resultdata.Password);
+			var E_Id=resultdata.Email_Id;
+			var password=resultdata.Password;
+			var FName=resultdata.First_Name;
+			var MName=resultdata.Middle_Name;
+			var LName=resultdata.Last_Name; 
+			var PRno=resultdata.PR_no;
+		    // query_responses could have more than one  results if there multiple peers were used as targets
+		    if (query_responses && query_responses.length == 1) {
+		        if (query_responses[0] instanceof Error) {
+		            console.error("error from query = ", query_responses[0]);
+					res.send("Could not locate student") 
+		        } else {
+					console.log("Response is ", query_responses[0].toString());
+					/*-----------------------------*/
+					var htmlData="<style> \
+					table, th, td { \
+						width:40% ; \
+					  border: 1px solid black; \
+					  border-collapse: collapse; \
+					} \
+					th, td { \
+					  padding: 5px; \
+					  text-align: left;    \
+					}  \
+					</style> \
+					<body> \
+					 \
+					<p>Dear "+FName+" "+ MName+" "+ LName+"  </p> \
+					Your Login details are given bellow, please attempt login with the retreived credentials. \
+					<br> \
+					<table > \
+					<tr > \
+						<th >Your retreived password</th> \
+						</tr> \
+					  <tr> \
+						<td>Login id:</td> \
+						<td>"+PRno+"</td> \
+					  </tr> \
+					  <tr> \
+						<td>Password:</td> \
+						<td>"+password+"</td> \
+					  </tr> \
+					</table> \
+					 Regards SecureCert\
+					</body>" 
+					
+					  var transporter = nodemailer.createTransport({
+						service: 'Gmail',
+						auth: {
+							   user: 'underdogs15it@gmail.com',
+							   pass: 'beitunderdogs'
+						   }
+					   });
+					  const mailOptions = {
+						from: 'underdogs15it@gmail.com', // sender address
+						to:E_Id, // list of receivers
+						subject: 'Student Enrollment Credentials', // Subject line
+						html:   htmlData  // plain text body
+					  };
+					  transporter.sendMail(mailOptions, function (err, info) {
+						if(err)
+						  console.log(err)
+						else
+						  console.log(info);
+						  
+					 });
+					/*---------------------------------*/
+					res.send("mail is sucessfully sent");
+					
+		        }
+		    } else {
+		        console.log("No payloads were returned from query");
+		        res.send("Could not locate student")
+		    }
+		}).catch((err) => {
+		    console.error('Failed to query successfully :: ' + err);
+		    res.send("Could not locate student");
+		});
+	},
+
 	addNewCertificate: function(req, res, next) {
 		console.log(req.body);
 		//console.log(req);
