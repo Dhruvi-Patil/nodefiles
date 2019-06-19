@@ -6,13 +6,9 @@ module.exports = function(app){
 
   app.get('/get_cert/:id', cors(), function(req, res){
     cert.get_cert(req, res);
-
   });
   app.post('/addNewCertificate', cors(), function(req, res){
     cert.addNewCertificate(req, res);
-    //console.log(res);
-    res.send("fetched response...");
-  
   });
   app.get('/get_all_cert', cors(), function(req, res){
     cert.get_all_cert(req, res);
@@ -23,10 +19,19 @@ module.exports = function(app){
   app.get('/get_student/:id', cors(), function(req, res){
     cert.get_student(req, res);
   });
+  app.post('/get_password', cors(), function(req, res){
+    cert.get_password(req, res);
+  });
   app.post('/addNewStudent', cors(), function(req, res){
     cert.addNewStudent(req, res);
   });
-  app.post('/Login', cors(), function(req, res){
+  app.get('/Login', cors(), function(req, res){
     cert.Login(req, res);
   });
+  /*
+  app.get('/Login_university:id3/:id4', cors(), function(req, res){
+    cert.Login_university(req, res);
+  });
+  */ 
 }
+
