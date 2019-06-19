@@ -9,6 +9,7 @@ var Fabric_Client = require('fabric-client');
 var path          = require('path');
 var util          = require('util');
 var os            = require('os');
+var mail=require('./email.js');
 
 app.use(bodyParser.urlencoded({extended:true}));
 module.exports = (function() {
@@ -218,6 +219,82 @@ module.exports = (function() {
 		});
 	},
 
+	get_password: function(req, res){
+
+		var fabric_client = new Fabric_Client();
+		var key = req.params.id
+
+		// setup the fabric network
+		var channel = fabric_client.newChannel('mychannel');
+		var peer = fabric_client.newPeer('grpc://localhost:7051');
+		channel.addPeer(peer);
+
+		
+		var member_user = null;
+		var store_path = path.join(os.homedir(), '.hfc-key-store');
+		console.log('Store path:'+store_path);
+		var tx_id = null;
+
+
+		// create the key value store as defined in the fabric-client/config/default.json 'key-value-store' setting
+		Fabric_Client.newDefaultKeyValueStore({ path: store_path
+		}).then((state_store) => {
+		    // assign the store to the fabric client
+		    fabric_client.setStateStore(state_store);
+		    var crypto_suite = Fabric_Client.newCryptoSuite();
+		    // use the same location for the state store (where the users' certificate are kept)
+		    // and the crypto store (where the users' keys are kept)
+		    var crypto_store = Fabric_Client.newCryptoKeyStore({path: store_path});
+		    crypto_suite.setCryptoKeyStore(crypto_store);
+		    fabric_client.setCryptoSuite(crypto_suite);
+
+		    // get the enrolled user from persistence, this user will sign all requests
+		    return fabric_client.getUserContext('user1', true);
+		}).then((user_from_store) => {
+		    if (user_from_store && user_from_store.isEnrolled()) {
+		        console.log('Successfully loaded user1 from persistence');
+		        member_user = user_from_store;
+		    } else {
+				throw new Error('Failed to get user1.... run registerUser.js');
+		    }
+		    // getStudent - requires 1 argument, ex: args: ['4']
+		    const request = {
+		        chaincodeId: 'securecert-app',
+		        txId: tx_id,
+		        fcn: 'readStudent',
+		        args: [key]
+		    };
+		    // send the query proposal to the peer
+		    return channel.queryByChaincode(request);
+		}).then((query_responses) => {
+			let resultdata=JSON.parse(query_responses.toString('utf8'));
+			console.log("Query has completed, checking results");
+			console.log(resultdata);
+			console.log(resultdata.Email_Id);
+			console.log(resultdata.Password);
+			var E_Id=resultdata.Email_Id;
+			console.log(E_Id);
+
+		    // query_responses could have more than one  results if there multiple peers were used as targets
+		    if (query_responses && query_responses.length == 1) {
+		        if (query_responses[0] instanceof Error) {
+		            console.error("error from query = ", query_responses[0]);
+					res.write("Could not locate student")
+					res.end();  
+		        } else {
+					console.log("Response is ", query_responses[0].toString());
+					res.write("mail is sucessfully sent");
+					//res.send(query_responses[0].toString())
+		        }
+		    } else {
+		        console.log("No payloads were returned from query");
+		        res.send("Could not locate student")
+		    }
+		}).catch((err) => {
+		    console.error('Failed to query successfully :: ' + err);
+		    res.send("Could not locate student")
+		});
+	},
 	addNewCertificate: function(req, res, next) {
 		//console.log(req.body);
 		//console.log(req);
@@ -228,16 +305,6 @@ module.exports = (function() {
 	    var examination = req.body['cert_examination']
 	    var YOP = req.body['cert_YOP']
 		var sub = req.body['cert_sububject']
-		/*
-		var sub2 = req.body['cert_subject2']
-		var sub3 = req.body['cert_subject3']
-		var sub4 = req.body['cert_subject4']
-		var sub5 = req.body['cert_subject5']
-		var sub6 = req.body['cert_subject6']
-		*/ 
-	
-
-
 		var fabric_client = new Fabric_Client();
 
 		// setup the fabric network
@@ -288,8 +355,6 @@ module.exports = (function() {
 		        chainId: 'mychannel',
 		        txId: tx_id
 		    };
-			 
-	
 		    // send the transaction proposal to the peers
 		    return channel.sendTransactionProposal(request);
 		}).then((results) => {
@@ -306,7 +371,10 @@ module.exports = (function() {
 		    if (isProposalGood) {
 		        console.log(util.format(
 		            'Successfully sent Proposal and received ProposalResponse: Status - %s, message - "%s"',
-		            proposalResponses[0].response.status, proposalResponses[0].response.message));
+					proposalResponses[0].response.status, proposalResponses[0].response.message));
+					if(proposalResponses[0].response.status==200)
+					{res.status(200).send({sucess:true});}
+					else{res.status(402).send({sucess:false});}
 
 		        // build up the request for the orderer to have the transaction committed
 		        var request = {
@@ -385,7 +453,6 @@ module.exports = (function() {
 		    console.error('Failed to invoke successfully :: ' + err);
 		});
 	},
-
 	addNewStudent: function(req, res, next) {
 		//console.log(req.body);
 		//console.log(req);
@@ -397,7 +464,7 @@ module.exports = (function() {
 		var LName = req.body['surname']
 		var CName = req.body['collegeName']
 		var branch = req.body['branch']
-	        var YOA = req.body['YOA']
+	    var YOA = req.body['YOA']
 		var EId = req.body['emailId']
 		var mobile=req.body['mobileNumber']
 
@@ -447,12 +514,10 @@ module.exports = (function() {
 		        //targets : --- letting this default to the peers assigned to the channel
 		        chaincodeId: 'securecert-app',
 		        fcn: 'addStudent',
-		        args: [PRno,password,FName,MName,LName,CName,branch,YOA,EId ,mobile.toString()],
+		        args: [PRno,password,FName,MName,LName,CName,branch,YOA,EId ,mobile/*toString()*/],
 		        chainId: 'mychannel',
 		        txId: tx_id
 		    };
-			 
-	
 		    // send the transaction proposal to the peers
 		    return channel.sendTransactionProposal(request);
 		}).then((results) => {
@@ -469,7 +534,10 @@ module.exports = (function() {
 		    if (isProposalGood) {
 		        console.log(util.format(
 		            'Successfully sent Proposal and received ProposalResponse: Status - %s, message - "%s"',
-		            proposalResponses[0].response.status, proposalResponses[0].response.message));
+					proposalResponses[0].response.status, proposalResponses[0].response.message));
+					if(proposalResponses[0].response.status==200)
+					{res.status(200).send({sucess:true});}
+					else{res.status(402).send({sucess:false});}
 
 		        // build up the request for the orderer to have the transaction committed
 		        var request = {
@@ -533,14 +601,16 @@ module.exports = (function() {
 		    // check the results in the order the promises were added to the promise all list
 		    if (results && results[0] && results[0].status === 'SUCCESS') {
 		        console.log('Successfully sent transaction to the orderer.');
-		        res.send(tx_id.getTransactionID());
+		        //res.send(tx_id.getTransactionID());
 		    } else {
 		        console.error('Failed to order the transaction. Error code: ' + response.status);
 		    }
 
 		    if(results && results[1] && results[1].event_status === 'VALID') {
-		        console.log('Successfully committed the change to the ledger by the peer');
-		        res.send(tx_id.getTransactionID());
+				console.log('Successfully committed the change to the ledger by the peer');
+				mail.sendmail(FName,MName,LName,PRno,password,EId);
+				//res.send(tx_id.getTransactionID());
+
 		    } else {
 		        console.log('Transaction failed to be committed to the ledger due to ::'+results[1].event_status);
 		    }
@@ -548,7 +618,6 @@ module.exports = (function() {
 		    console.error('Failed to invoke successfully :: ' + err);
 		});
 	},
-
 	Login: function(req, res){
 
 		var fabric_client = new Fabric_Client();
@@ -587,7 +656,6 @@ module.exports = (function() {
 		    } else {
 		        throw new Error('Failed to get user1.... run registerUser.js');
 		    }
-
 		    // readCert - requires 1 argument, ex: args: ['4'],
 		    const request = {
 		        chaincodeId: 'securecert-app',
@@ -595,7 +663,6 @@ module.exports = (function() {
 		        fcn: 'login',
 		        args: [pr,pwd,role]
 		    };
-
 		    // send the query proposal to the peer
 		    return channel.queryByChaincode(request);
 		}).then((query_responses) => {
