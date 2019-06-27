@@ -9,24 +9,20 @@ var Fabric_Client = require('fabric-client');
 var path          = require('path');
 var util          = require('util');
 var os            = require('os');
-
 var cuname = 'college' //creator name
 var cupassword = 'creator'
 var role = "1";
 var fabric_client = new Fabric_Client();
-
 // setup the fabric network
 var channel = fabric_client.newChannel('mychannel');
 var peer = fabric_client.newPeer('grpc://localhost:7051');
 channel.addPeer(peer);
 var order = fabric_client.newOrderer('grpc://localhost:7050')
 channel.addOrderer(order);
-
 var member_user = null;
 var store_path = path.join(os.homedir(), '.hfc-key-store');
 console.log('Store path:'+store_path);
 var tx_id = null;
-
 // create the key value store as defined in the fabric-client/config/default.json 'key-value-store' setting
 Fabric_Client.newDefaultKeyValueStore({ path: store_path
 }).then((state_store) => {
@@ -38,7 +34,6 @@ Fabric_Client.newDefaultKeyValueStore({ path: store_path
     var crypto_store = Fabric_Client.newCryptoKeyStore({path: store_path});
     crypto_suite.setCryptoKeyStore(crypto_store);
     fabric_client.setCryptoSuite(crypto_suite);
-
     // get the enrolled user from persistence, this user will sign all requests
     return fabric_client.getUserContext('user1', true);
 }).then((user_from_store) => {
@@ -48,7 +43,6 @@ Fabric_Client.newDefaultKeyValueStore({ path: store_path
     } else {
         throw new Error('Failed to get user1.... run registerUser.js');
     }
-
     // get a transaction id object based on the current user assigned to fabric client
     tx_id = fabric_client.newTransactionID();
     console.log("Assigning transaction_id: ", tx_id._transaction_id);
@@ -61,7 +55,6 @@ Fabric_Client.newDefaultKeyValueStore({ path: store_path
         chainId: 'mychannel',
         txId: tx_id
     };
-
     // send the transaction proposal to the peers
     return channel.sendTransactionProposal(request);
 }).then((results) => {
@@ -85,7 +78,6 @@ Fabric_Client.newDefaultKeyValueStore({ path: store_path
             proposalResponses: proposalResponses,
             proposal: proposal
         };
-
         // set the transaction listener and set a timeout of 30 sec
         // if the transaction did not get committed within the timeout period,
         // report a TIMEOUT status
