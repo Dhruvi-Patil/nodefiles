@@ -1,9 +1,7 @@
 //SPDX-License-Identifier: Apache-2.0
 var cors = require('cors');
 var cert = require('./controller.js');
-
 module.exports = function(app){
-
   app.get('/get_cert/:id', cors(), function(req, res){
     cert.get_cert(req, res);
   });
@@ -25,13 +23,8 @@ module.exports = function(app){
   app.post('/addNewStudent', cors(), function(req, res){
     cert.addNewStudent(req, res);
   });
-  app.get('/Login', cors(), function(req, res){
+  app.post('/Login', cors(), function(req, res){
     cert.Login(req, res);
   });
-  /*
-  app.get('/Login_university:id3/:id4', cors(), function(req, res){
-    cert.Login_university(req, res);
-  });
-  */ 
 }
 
